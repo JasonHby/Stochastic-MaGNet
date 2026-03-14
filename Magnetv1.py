@@ -53,7 +53,6 @@ class MaGNet(nn.Module):
             nn.LayerNorm(T*dim),
             nn.Linear(T*dim, T*dim),
             nn.ReLU(),
-            nn.Dropout(dropout),
             nn.Linear(T*dim, 2),
         )
 
