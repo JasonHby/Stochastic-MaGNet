@@ -5,6 +5,7 @@ from Dataset import StockDataset
 
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
+# same settings as train.py
 data_path = "djia_alpha158_alpha360.pt"
 weight_path = "best_model.pth"
 
@@ -23,11 +24,9 @@ M1 = 32
 num_S2DAttn = 1
 num_GPH = 1
 M2 = 16
-dropout = 0.1
-
 num_mc_runs = 100
 
-print("Loading data...")
+# load data
 data = torch.load(data_path).to(device)
 
 total_date = data.shape[1]
@@ -44,97 +43,52 @@ test_data = (test_data - test_data_mean) / (test_data_std + epsilon)
 test_dataset = StockDataset(test_data, T, device)
 test_loader = DataLoader(test_dataset, batch_size=batch_size, shuffle=False)
 
+# rebuild model
 N = data.shape[0]
 F = data.shape[2]
 
-print(f"N = {N}, F = {F}")
-
-# -----------------------------
-# rebuild model
-# -----------------------------
-print("Building model...")
 model = MaGNet(
     N, T, F, dim, num_MAGE, num_experts,
     num_heads_mha, num_F2DAttn, num_channels,
     num_heads_CausalMHA, num_TCH, TopK, M1,
     num_S2DAttn, num_GPH, M2,
     device=device,
-    dropout=dropout
+    dropout=0.1
 ).to(device)
 
 model.load_state_dict(torch.load(weight_path, map_location=device))
 
-# use model.train instead of the evaluation so still have the MC dropout
+# keep dropout ON
 model.train()
 
-all_labels = []
-for _, y in test_loader:
-    all_labels.append(y)
-
-all_labels = torch.cat(all_labels, dim=0)
-
-# -----------------------------
-# MC Dropout inference
-# -----------------------------
-print(f"Running MC Dropout inference for {num_mc_runs} runs...")
-
-all_predictions = []
+all_mc_preds = []
 
 with torch.no_grad():
-    for run in range(num_mc_runs):
-        run_predictions = []
+    for _ in range(num_mc_runs):
+        one_run_preds = []
 
         for x, _ in test_loader:
-            output, *_ = model(x)                 
-            prob = torch.softmax(output, dim=-1)  
-            run_predictions.append(prob)
+            output, *_ = model(x)
+            prob = torch.softmax(output, dim=-1)
+            one_run_preds.append(prob)
 
-        run_predictions = torch.cat(run_predictions, dim=0)
-        all_predictions.append(run_predictions)
+        one_run_preds = torch.cat(one_run_preds, dim=0)
+        all_mc_preds.append(one_run_preds)
 
-        if (run + 1) % 10 == 0:
-            print(f"Completed {run + 1}/{num_mc_runs} runs")
+all_mc_preds = torch.stack(all_mc_preds, dim=0)
 
-all_predictions = torch.stack(all_predictions, dim=0)
-
-
-# -----------------------------
-# mean and variance
-# -----------------------------
-mean_pred = all_predictions.mean(dim=0)
-var_pred = all_predictions.var(dim=0)
+mean_pred = all_mc_preds.mean(dim=0)
+var_pred = all_mc_preds.var(dim=0)
 
 print("mean_pred shape:", mean_pred.shape)
 print("var_pred shape:", var_pred.shape)
 
-# -----------------------------
-# final predicted class
-# -----------------------------
-final_pred = mean_pred.argmax(dim=-1)
+torch.save(
+    {
+        "mean_pred": mean_pred.cpu(),
+        "var_pred": var_pred.cpu(),
+    },
+    "mc_results.pt"
+)
 
-# uncertainty score:
-# average variance across classes
-uncertainty_score = var_pred.mean(dim=-1)
-
-print("final_pred shape:", final_pred.shape)
-print("uncertainty_score shape:", uncertainty_score.shape)
-
-# The accuracy from the mean prediction
-accuracy = (final_pred == all_labels).float().mean().item() 
-print(f"MC Dropout Test Accuracy: {accuracy:.4f}")
-
-print("\nExample outputs:")
-print("Mean prediction (first 5):")
-print(mean_pred[:5])
-
-print("\nVariance (first 5):")
-print(var_pred[:5])
-
-print("\nPredicted class (first 20):")
-print(final_pred[:20])
-
-print("\nTrue labels (first 20):")
-print(all_labels[:20])
-
-print("\nUncertainty score (first 20):")
-print(uncertainty_score[:20])
+print("Saved to mc_results.pt")
