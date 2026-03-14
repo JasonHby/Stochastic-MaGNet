@@ -52,7 +52,7 @@ class MaGNet(nn.Module):
         self.output = nn.Sequential(
             nn.LayerNorm(T*dim),
             nn.Linear(T*dim, T*dim),
-            nn.ReLU(),
+            nn.ReLU(), # deleted the original dropout layer
             nn.Linear(T*dim, 2),
         )
 
