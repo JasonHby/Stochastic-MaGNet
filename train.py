@@ -9,7 +9,7 @@ from transformers import get_linear_schedule_with_warmup
 import importlib
 
 # ── Change this to 'Magnetv1', 'Magnetv2', or 'Magnetv3' ──
-MODEL_VERSION = 'Magnetv1'
+MODEL_VERSION = 'Magnetv2'
 MaGNet = importlib.import_module(MODEL_VERSION).MaGNet
 print(f"Using model: {MODEL_VERSION}")
 
@@ -228,7 +228,7 @@ if __name__ == "__main__":
 
 
     ### For dataset NASDAQ100:
-    data_path = 'my_nas100_2025_data.pt'
+    data_path = "my_nas100_2025_data.pt"
     T = 10  # lookback window size
     batch_size = 24
     num_MAGE = 1  # number of MAGE block

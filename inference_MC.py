@@ -6,7 +6,7 @@ import matplotlib.pyplot as plt
 
 # CHANGE THIS to 'Magnetv1', 'Magnetv2', or 'Magnetv3' 
 
-MODEL_VERSION = 'Magnetv1'
+MODEL_VERSION = 'Magnetv2'
 MaGNet = importlib.import_module(MODEL_VERSION).MaGNet
 print(f"Using model: {MODEL_VERSION}")
 
